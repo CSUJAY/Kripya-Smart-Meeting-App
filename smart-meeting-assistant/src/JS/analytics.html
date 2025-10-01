@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KRSN - Interactive Transcript Analyzer</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-color: #1a1a2e;
+            --card-color: rgba(255, 255, 255, 0.05);
+            --border-color: rgba(255, 255, 255, 0.2);
+            --primary-glow: #6366f1;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a8a8b3;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .glass-card {
+            background: var(--card-color);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        @keyframes slideInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-slideInUp { animation: slideInUp 0.8s ease forwards; }
+
+        textarea {
+            background-color: rgba(0,0,0,0.2);
+            border-color: var(--border-color);
+        }
+        textarea:focus {
+            border-color: var(--primary-glow);
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="hidden fixed inset-0 bg-black bg-opacity-80 z-50 flex-col items-center justify-center text-white">
+        <i class="fas fa-rocket fa-3x animate-pulse mb-4"></i>
+        <h2 class="text-2xl font-bold mb-2">Analyzing Your Transcript...</h2>
+        <p id="loading-status" class="text-lg text-gray-300 mb-4">Processing text...</p>
+    </div>
+
+    <header class="p-4 flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-white">KRSN <span class="text-indigo-400">AI Analyzer</span></h1>
+    </header>
+
+    <main class="p-4 md:p-8">
+        <!-- Pre-Analysis State: Transcript Input -->
+        <div id="pre-analysis-container" class="text-center flex flex-col items-center justify-center">
+            <i class="fas fa-paste fa-3x text-indigo-400 mb-6"></i>
+            <h2 class="text-4xl font-bold text-white mb-4">Analyze Any Meeting Transcript</h2>
+            <p class="text-lg text-gray-300 mb-6 max-w-3xl">
+                To get started, paste the full transcript of your meeting below. Make sure it's in the format of "Speaker Name: [Text]".
+                <br><a href="#" class="text-indigo-400 hover:underline" onclick="loadSampleTranscript()">Or, click here to load a sample transcript.</a>
+            </p>
+            <textarea id="transcript-input" class="w-full max-w-4xl h-64 p-4 rounded-lg text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g.&#10;Alice Johnson: Good morning, everyone. Let's start with the Q4 budget review.&#10;Bob Williams: Thanks, Alice. I've sent the preliminary numbers."></textarea>
+            <button id="analyze-btn" class="mt-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-full text-lg transition-transform transform hover:scale-105 disabled:bg-gray-500 disabled:cursor-not-allowed" disabled>
+                <i class="fas fa-wand-magic-sparkles mr-2"></i> Analyze Transcript
+            </button>
+        </div>
+
+        <!-- Dashboard (Initially Hidden) -->
+        <div id="dashboard-container" class="hidden opacity-0">
+            <div class="flex justify-end mb-4">
+                <button id="reset-btn" class="text-sm bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-full"><i class="fas fa-undo mr-2"></i>Analyze Another</button>
+            </div>
+            <div id="kpi-cards" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8"></div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 glass-card p-6">
+                    <h3 class="text-xl font-semibold mb-4">Participant Talk Time Distribution</h3>
+                    <div class="chart-container"><canvas id="talkTimeChart"></canvas></div>
+                </div>
+                <div class="lg:col-span-1 glass-card p-6">
+                    <h3 class="text-xl font-semibold mb-4">Keywords & Topics</h3>
+                    <div id="word-cloud-container" class="p-4 rounded-lg min-h-[200px] flex flex-wrap items-center justify-center gap-x-4 gap-y-2"></div>
+                </div>
+            </div>
+             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                 <div class="lg:col-span-2 glass-card p-6">
+                    <h3 class="text-xl font-semibold mb-4">Sentiment Flow Over Time</h3>
+                    <div class="chart-container" style="height:250px"><canvas id="sentimentTrendChart"></canvas></div>
+                 </div>
+                 <div class="lg:col-span-1 glass-card p-6">
+                     <h3 class="text-xl font-semibold mb-4">AI-Generated Summary</h3>
+                     <p id="ai-summary" class="text-sm text-gray-300 max-h-[250px] overflow-y-auto"></p>
+                 </div>
+             </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- UI Elements ---
+            const analyzeBtn = document.getElementById('analyze-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const loadingOverlay = document.getElementById('loading-overlay');
+            const preAnalysisContainer = document.getElementById('pre-analysis-container');
+            const dashboardContainer = document.getElementById('dashboard-container');
+            const transcriptInput = document.getElementById('transcript-input');
+
+            // --- Enable/Disable Analyze Button ---
+            transcriptInput.addEventListener('input', () => {
+                analyzeBtn.disabled = transcriptInput.value.trim().length === 0;
+            });
+            
+            // --- Event Listeners ---
+            analyzeBtn.addEventListener('click', () => {
+                const transcript = transcriptInput.value;
+                if (transcript.trim()) {
+                    runAnalysis(transcript);
+                }
+            });
+            
+            resetBtn.addEventListener('click', () => {
+                dashboardContainer.classList.add('hidden');
+                dashboardContainer.classList.remove('opacity-100');
+                preAnalysisContainer.classList.remove('hidden');
+                transcriptInput.value = '';
+                analyzeBtn.disabled = true;
+            });
+            
+            // --- Analysis Logic ---
+            function runAnalysis(transcript) {
+                loadingOverlay.classList.remove('hidden');
+                loadingOverlay.classList.add('flex');
+                
+                // Simulate a delay for processing
+                setTimeout(() => {
+                    // --- CORE ANALYSIS ENGINE ---
+                    const lines = transcript.trim().split('\n');
+                    const speakers = {};
+                    const sentimentTimeline = [];
+                    const allWords = [];
+                    
+                    let totalWords = 0;
+                    const positiveWords = ['great', 'awesome', 'success', 'agree', 'good', 'achieved', 'excellent'];
+                    const negativeWords = ['concern', 'problem', 'blocker', 'delay', 'issue', 'disagree', 'but'];
+
+                    lines.forEach((line, index) => {
+                        const parts = line.split(':');
+                        if (parts.length < 2) return; // Skip invalid lines
+                        
+                        const speakerName = parts[0].trim();
+                        const text = parts.slice(1).join(':').trim();
+                        const words = text.split(/\s+/);
+                        const wordCount = words.length;
+
+                        if (!speakers[speakerName]) {
+                            speakers[speakerName] = { talkTime: 0, wordCount: 0 };
+                        }
+                        speakers[speakerName].wordCount += wordCount;
+                        totalWords += wordCount;
+                        
+                        // Simple sentiment calculation
+                        let sentimentScore = 0;
+                        words.forEach(word => {
+                            const cleanWord = word.toLowerCase().replace(/[.,!?]/g, '');
+                            if (positiveWords.includes(cleanWord)) sentimentScore++;
+                            if (negativeWords.includes(cleanWord)) sentimentScore--;
+                            if (cleanWord.length > 3) allWords.push(cleanWord);
+                        });
+                        sentimentTimeline.push(sentimentScore);
+                    });
+
+                    // Calculate talk time based on word count proportion
+                    const WPM = 150; // Average words per minute
+                    const estimatedDuration = Math.ceil(totalWords / WPM);
+                    Object.keys(speakers).forEach(name => {
+                        speakers[name].talkTime = (speakers[name].wordCount / totalWords) * estimatedDuration;
+                    });
+                    
+                    // Create word cloud data
+                    const wordCounts = allWords.reduce((acc, word) => { acc[word] = (acc[word] || 0) + 1; return acc; }, {});
+                    const sortedWords = Object.entries(wordCounts).sort(([,a],[,b]) => b-a).slice(0, 15);
+                    const wordCloudData = sortedWords.map(([text, weight]) => ({
+                        text, weight,
+                        sentiment: positiveWords.includes(text) ? 'positive' : negativeWords.includes(text) ? 'negative' : 'neutral'
+                    }));
+
+                    // Generate AI summary
+                    const mainSpeaker = Object.keys(speakers).sort((a,b) => speakers[b].wordCount - speakers[a].wordCount)[0];
+                    const aiSummary = `This was an estimated ${estimatedDuration}-minute meeting with ${Object.keys(speakers).length} participants. <strong>${mainSpeaker}</strong> was the primary contributor. Key topics included <strong>${wordCloudData.slice(0,3).map(w=>w.text).join(', ')}</strong>. The sentiment was generally mixed, with notable positive and negative points throughout the discussion.`;
+
+                    // Prepare final data object
+                    const analysisResults = {
+                        kpis: {
+                            duration: estimatedDuration,
+                            participants: Object.keys(speakers).length,
+                            totalWords: totalWords,
+                            sentimentScore: sentimentTimeline.reduce((a,b)=>a+b, 0)
+                        },
+                        talkTimeData: speakers,
+                        wordCloudData: wordCloudData,
+                        sentimentFlow: sentimentTimeline,
+                        aiSummary: aiSummary
+                    };
+
+                    showDashboard(analysisResults);
+                }, 2000); // 2-second simulation
+            }
+
+            // --- Dashboard Display ---
+            function showDashboard(data) {
+                loadingOverlay.classList.remove('flex');
+                loadingOverlay.classList.add('hidden');
+                preAnalysisContainer.classList.add('hidden');
+                dashboardContainer.classList.remove('hidden');
+                
+                // Destroy old charts if they exist
+                ['talkTimeChart', 'sentimentTrendChart'].forEach(id => {
+                    const chartInstance = Chart.getChart(id);
+                    if (chartInstance) chartInstance.destroy();
+                });
+
+                // Populate all widgets
+                renderKpiCards(data.kpis);
+                renderTalkTimeChart(data.talkTimeData);
+                renderWordCloud(data.wordCloudData);
+                renderSentimentChart(data.sentimentFlow);
+                document.getElementById('ai-summary').innerHTML = data.aiSummary;
+
+                dashboardContainer.classList.add('opacity-100', 'animate-fadeIn');
+                const cards = document.querySelectorAll('.glass-card');
+                cards.forEach((card, index) => {
+                    card.style.opacity = '0';
+                    card.style.animationDelay = `${index * 100}ms`;
+                    card.classList.add('animate-slideInUp');
+                });
+            }
+
+            // --- RENDER FUNCTIONS ---
+            function renderKpiCards(data) {
+                const sentimentText = data.sentimentScore > 0 ? "Positive" : data.sentimentScore < 0 ? "Negative" : "Neutral";
+                const sentimentColor = data.sentimentScore > 0 ? "text-green-400" : data.sentimentScore < 0 ? "text-red-400" : "text-gray-400";
+
+                document.getElementById('kpi-cards').innerHTML = `
+                    <div class="glass-card p-4"><p class="text-sm text-gray-400">Est. Duration</p><h3 class="text-2xl font-bold">${data.duration} min</h3></div>
+                    <div class="glass-card p-4"><p class="text-sm text-gray-400">Participants</p><h3 class="text-2xl font-bold">${data.participants}</h3></div>
+                    <div class="glass-card p-4"><p class="text-sm text-gray-400">Total Words</p><h3 class="text-2xl font-bold">${data.totalWords}</h3></div>
+                    <div class="glass-card p-4"><p class="text-sm text-gray-400">Overall Sentiment</p><h3 class="text-2xl font-bold ${sentimentColor}">${sentimentText}</h3></div>
+                    <div class="glass-card p-4 bg-indigo-500/20 border-indigo-400"><p class="text-sm text-indigo-300">Key Speakers</p><h3 class="text-2xl font-bold text-white">${data.participants}</h3></div>
+                `;
+            }
+
+            function renderTalkTimeChart(speakers) {
+                const ctx = document.getElementById('talkTimeChart').getContext('2d');
+                const labels = Object.keys(speakers);
+                const data = labels.map(label => speakers[label].talkTime.toFixed(1));
+                
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: { labels, datasets: [{ label: 'Talk Time (min)', data, backgroundColor: '#6366f1', borderRadius: 4 }] },
+                    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: 'var(--text-secondary)' }, grid: { color: 'rgba(255,255,255,0.1)' } }, y: { ticks: { color: 'var(--text-secondary)' }, grid: { display: false } } } }
+                });
+            }
+
+            function renderWordCloud(data) {
+                const container = document.getElementById('word-cloud-container');
+                if (!data || data.length === 0) {
+                    container.innerHTML = `<p class="text-gray-400">No significant keywords found.</p>`;
+                    return;
+                }
+                const maxWeight = Math.max(...data.map(d => d.weight));
+                const wordHtml = data.map(word => {
+                    const fontSize = 1 + (word.weight / maxWeight) * 1.2;
+                    const color = word.sentiment === 'positive' ? 'text-green-400' : word.sentiment === 'negative' ? 'text-red-400' : 'text-gray-300';
+                    return `<span class="${color} font-bold" style="font-size: ${fontSize}rem; opacity: ${0.6 + (word.weight/maxWeight)/2}">${word.text}</span>`;
+                }).join('');
+                container.innerHTML = wordHtml;
+            }
+
+            function renderSentimentChart(data) {
+                const ctx = document.getElementById('sentimentTrendChart').getContext('2d');
+                let cumulativeSentiment = 0;
+                const flowData = data.map(score => cumulativeSentiment += score);
+
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.map((_,i) => `Line ${i+1}`),
+                        datasets: [{
+                            label: 'Sentiment Score', data: flowData, fill: true,
+                            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                            borderColor: '#22c55e', tension: 0.4
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
+                });
+            }
+
+            // --- Utility to load sample data ---
+            window.loadSampleTranscript = function() {
+                transcriptInput.value = `Alice Johnson: Good morning team. Let's start with the Project Phoenix update. Bob, how are we looking?
+Bob Williams: Morning, Alice. We've hit a small blocker with the API integration. It's a concern because it might cause a 2-day delay.
+Charlie Brown: I looked at the API docs, Bob. I think I have a solution. It's a quick fix we can implement today.
+Alice Johnson: That's great news, Charlie! Excellent initiative. That's a huge success for us. So, the delay is no longer an issue?
+Bob Williams: Correct. Thanks to Charlie, we should be back on track. I agree this is a good outcome.
+Alice Johnson: Awesome. This is a great achievement. Any other updates or problems to discuss? No? Okay, let's wrap up.`;
+                analyzeBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>```

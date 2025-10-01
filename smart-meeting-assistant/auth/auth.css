@@ -1,0 +1,32 @@
+#authModal input[type="email"],
+#authModal input[type="password"],
+#authModal input[type="text"] {
+    outline: none;
+    transition: border 0.2s;
+}
+#authModal input:focus {
+    border-color: #2563eb;
+}
+
+.social-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 500;
+    border-radius: 0.375rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    color: #374151;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    font-size: 1rem;
+}
+.social-btn.google { border-color: #ea4335; color: #ea4335; }
+.social-btn.google:hover { background: #ea4335; color: #fff; }
+.social-btn.facebook { border-color: #1877f3; color: #1877f3; }
+.social-btn.facebook:hover { background: #1877f3; color: #fff; }
+.social-btn.github { border-color: #333; color: #333; }
+.social-btn.github:hover { background: #333; color: #fff; }
+.social-btn.twitter { border-color: #1da1f2; color: #1da1f2; }
+.social-btn.twitter:hover { background: #1da1f2; color: #fff; }

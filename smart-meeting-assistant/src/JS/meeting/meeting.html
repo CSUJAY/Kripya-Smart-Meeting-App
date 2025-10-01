@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kripya - Meeting Room</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f7fa;
+        }
+        .sidebar {
+            width: 260px;
+            height: 100vh;
+            position: fixed;
+            overflow-y: auto;
+        }
+        .main-content {
+            margin-left: 260px;
+            width: calc(100% - 260px);
+        }
+        .transcript-container {
+            height: 400px;
+            overflow-y: auto;
+        }
+        .meeting-assistant {
+            height: 500px;
+            overflow-y: auto;
+        }
+        .participant-avatar {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        .video-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .video-participant {
+            background-color: #1f2937;
+            border-radius: 8px;
+            height: 200px;
+            position: relative;
+            overflow: hidden;
+        }
+        .video-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #9ca3af;
+        }
+        .participant-info {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 8px;
+            font-size: 14px;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            padding: 16px;
+            background: white;
+            border-radius: 8px;
+        }
+        .control-button {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .control-button:hover {
+            transform: scale(1.05);
+        }
+        .end-call {
+            background-color: #ef4444;
+            color: white;
+        }
+        .stat-card {
+            transition: all 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+        .message-bubble {
+            max-width: 80%;
+        }
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 220px;
+            }
+            .main-content {
+                margin-left: 220px;
+                width: calc(100% - 220px);
+            }
+        }
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                z-index: 50;
+            }
+            .sidebar.active {
+                transform: translateX(0);
+            }
+            .main-content {
+                margin-left: 0;
+                width: 100%;
+            }
+            .overlay {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 40;
+            }
+            .overlay.active {
+                display: block;
+            }
+            .video-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Mobile menu button -->
+    <div class="lg:hidden fixed top-4 left-4 z-50">
+        <button id="mobileMenuButton" class="p-2 rounded-md bg-gray-800 text-white">
+            <i class="fas fa-bars"></i>
+        </button>
+    </div>
+
+    <!-- Overlay for mobile -->
+    <div id="overlay" class="overlay"></div>
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar bg-gray-800 text-white flex flex-col">
+        <div class="p-5 border-b border-gray-700">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-microphone text-blue-400 text-xl"></i>
+                <h1 class="text-xl font-bold">Kripya</h1>
+            </div>
+            <p class="text-gray-400 text-sm mt-1">Smart Meeting Assistant</p>
+        </div>
+        
+        <nav class="flex-1 overflow-y-auto py-4">
+            <ul>
+                <li class="px-5 py-3 hover:bg-gray-700 cursor-pointer flex items-center text-gray-300">
+                    <i class="fas fa-home mr-3"></i>
+                    <span>Dashboard</span>
+                </li>
+                <li class="px-5 py-3 hover:bg-gray-700 cursor-pointer flex items-center text-gray-300">
+                    <i class="fas fa-clock mr-3"></i>
+                    <span>Recent Meetings</span>
+                </li>
+                <li class="px-5 py-3 hover:bg-gray-700 cursor-pointer flex items-center text-gray-300">
+                    <i class="fas fa-file-alt mr-3"></i>
+                    <span>Transcripts</span>
+                </li>
+                <li class="px-5 py-3 hover:bg-gray-700 cursor-pointer flex items-center text-gray-300">
+                    <i class="fas fa-chart-pie mr-3"></i>
+                    <span>Analytics</span>
+                </li>
+                <li class="px-5 py-3 hover:bg-gray-700 cursor-pointer flex items-center text-gray-300">
+                    <i class="fas fa-cog mr-3"></i>
+                    <span>Settings</span>
+                </li>
+            </ul>
+            
+            <div class="mt-8 px-5">
+                <h3 class="text-xs uppercase text-gray-500 tracking-wider mb-2">TEAMS</h3>
+                <div class="flex items-center mb-3 p-2 rounded hover:bg-gray-700 cursor-pointer">
+                    <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center mr-2">
+                        <span class="text-xs font-bold">D</span>
+                    </div>
+                    <span>Design Team</span>
+                </div>
+                <div class="flex items-center mb-3 p-2 rounded hover:bg-gray-700 cursor-pointer">
+                    <div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center mr-2">
+                        <span class="text-xs font-bold">E</span>
+                    </div>
+                    <span>Engineering</span>
+                </div>
+                <div class="flex items-center mb-3 p-2 rounded hover:bg-gray-700 cursor-pointer">
+                    <div class="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center mr-2">
+                        <span class="text-xs font-bold">M</span>
+                    </div>
+                    <span>Marketing</span>
+                </div>
+            </div>
+        </nav>
+        
+        <div class="p-5 border-t border-gray-700">
+            <div class="flex items-center">
+                <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center mr-3">
+                    <span class="text-sm font-bold">JS</span>
+                </div>
+                <div class="flex-1">
+                    <p class="text-sm font-medium">John Smith</p>
+                    <p class="text-xs text-gray-400">Admin</p>
+                </div>
+                <button class="text-gray-400 hover:text-white">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Header -->
+        <header class="bg-white shadow-sm py-4 px-6 flex items-center justify-between">
+            <div class="flex items-center">
+                <button onclick="goBack()" class="mr-4 text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h2 class="text-xl font-semibold text-gray-900">Team Planning Meeting</h2>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+                <div class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm flex items-center">
+                    <span class="h-2 w-2 bg-green-600 rounded-full mr-2"></span>
+                    Live
+                </div>
+                
+                <div class="relative hidden md:block">
+                    <input type="text" placeholder="Search in meeting..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                </div>
+                
+                <button class="text-gray-500 hover:text-gray-700 relative">
+                    <i class="fas fa-bell text-xl"></i>
+                    <span class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full text-xs w-4 h-4 flex items-center justify-center">3</span>
+                </button>
+                
+                <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center">
+                    <i class="fas fa-share-alt mr-2"></i>
+                    Invite
+                </button>
+            </div>
+        </header>
+
+        <!-- Content Area -->
+        <div class="p-6">
+            <!-- Video Grid -->
+            <div class="video-container">
+                <div class="video-participant">
+                    <div class="video-placeholder">
+                        <i class="fas fa-user fa-3x"></i>
+                    </div>
+                    <div class="participant-info">
+                        <div class="flex items-center justify-between">
+                            <span>John Smith (You)</span>
+                            <div class="flex space-x-2">
+                                <i class="fas fa-microphone text-green-400"></i>
+                                <i class="fas fa-video text-green-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="video-participant">
+                    <div class="video-placeholder">
+                        <i class="fas fa-user fa-3x"></i>
+                    </div>
+                    <div class="participant-info">
+                        <div class="flex items-center justify-between">
+                            <span>Sarah Davis</span>
+                            <div class="flex space-x-2">
+                                <i class="fas fa-microphone text-green-400"></i>
+                                <i class="fas fa-video text-green-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="video-participant">
+                    <div class="video-placeholder">
+                        <i class="fas fa-user fa-3x"></i>
+                    </div>
+                    <div class="participant-info">
+                        <div class="flex items-center justify-between">
+                            <span>Mike Johnson</span>
+                            <div class="flex space-x-2">
+                                <i class="fas fa-microphone-slash text-red-400"></i>
+                                <i class="fas fa-video text-green-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="video-participant">
+                    <div class="video-placeholder">
+                        <i class="fas fa-user fa-3x"></i>
+                    </div>
+                    <div class="participant-info">
+                        <div class="flex items-center justify-between">
+                            <span>Amy Lee</span>
+                            <div class="flex space-x-2">
+                                <i class="fas fa-microphone text-green-400"></i>
+                                <i class="fas fa-video-slash text-red-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="controls mb-8">
+                <div class="control-button bg-gray-200">
+                    <i class="fas fa-microphone text-gray-700 text-xl"></i>
+                    <span class="text-xs mt-1">Mute</span>
+                </div>
+                
+                <div class="control-button bg-gray-200">
+                    <i class="fas fa-video text-gray-700 text-xl"></i>
+                    <span class="text-xs mt-1">Video</span>
+                </div>
+                
+                <div class="control-button bg-gray-200">
+                    <i class="fas fa-desktop text-gray-700 text-xl"></i>
+                    <span class="text-xs mt-1">Share</span>
+                </div>
+                
+                <div class="control-button bg-gray-200">
+                    <i class="fas fa-users text-gray-700 text-xl"></i>
+                    <span class="text-xs mt-1">Participants</span>
+                </div>
+                
+                <div class="control-button bg-gray-200">
+                    <i class="fas fa-shield-alt text-gray-700 text-xl"></i>
+                    <span class="text-xs mt-1">Security</span>
+                </div>
+                
+                <div class="control-button end-call">
+                    <i class="fas fa-phone-slash text-xl"></i>
+                    <span class="text-xs mt-1">Leave</span>
+                </div>
+            </div>
+
+            <!-- Main Content Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Left Column -->
+                <div class="lg:col-span-2 space-y-6">
+                    <!-- Live Transcript -->
+                    <div class="bg-white rounded-lg shadow">
+                        <div class="border-b border-gray-200 px-6 py-4">
+                            <h3 class="text-lg font-medium text-gray-900">Live Transcript</h3>
+                            <p class="text-sm text-gray-500">Real-time meeting transcription</p>
+                        </div>
+                        <div class="p-6">
+                            <div class="bg-gray-50 rounded-lg p-4 transcript-container">
+                                <div class="space-y-4">
+                                    <div class="flex">
+                                        <div class="flex-shrink-0 mr-3">
+                                            <div class="participant-avatar bg-blue-100 text-blue-600">JS</div>
+                                        </div>
+                                        <div class="message-bubble">
+                                            <div class="font-medium text-gray-900">John Smith</div>
+                                            <div class="mt-1 text-sm text-gray-700 bg-white p-3 rounded-lg">Welcome everyone to our quarterly planning meeting. Let's start by reviewing the agenda.</div>
+                                            <div class="mt-1 text-xs text-gray-500">10:24 AM</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex">
+                                        <div class="flex-shrink-0 mr-3">
+                                            <div class="participant-avatar bg-green-100 text-green-600">SD</div>
+                                        </div>
+                                        <div class="message-bubble">
+                                            <div class="font-medium text-gray-900">Sarah Davis</div>
+                                            <div class="mt-1 text-sm text-gray-700 bg-white p-3 rounded-lg">Thanks John. I've shared the agenda document in the chat. The main topics are product roadmap, resource allocation, and marketing initiatives.</div>
+                                            <div class="mt-1 text-xs text-gray-500">10:26 AM</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex">
+                                        <div class="flex-shrink-0 mr-3">
+                                            <div class="participant-avatar bg-purple-100 text-purple-600">MJ</div>
+                                        </div>
+                                        <div class="message-bubble">
+                                            <div class="font-medium text-gray-900">Mike Johnson</div>
+                                            <div class="mt-1 text-sm text-gray-700 bg-white p-3 rounded-lg">Before we dive into the roadmap, I wanted to highlight that we need to address the technical debt in our authentication system. It's causing issues with user sessions.</div>
+                                            <div class="mt-1 text-xs text-gray-500">10:28 AM</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex">
+                                        <div class="flex-shrink-0 mr-3">
+                                            <div class="participant-avatar bg-yellow-100 text-yellow-600">AL</div>
+                                        </div>
+                                        <div class="message-bubble">
+                                            <div class="font-medium text-gray-900">Amy Lee</div>
+                                            <div class="mt-1 text-sm text-gray-700 bg-white p-3 rounded-lg">I agree with Mike. We've received several customer support tickets about this issue. It should be a priority.</div>
+                                            <div class="mt-1 text-xs text-gray-500">10:30 AM</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex">
+                                        <div class="flex-shrink-0 mr-3">
+                                            <div class="participant-avatar bg-blue-100 text-blue-600">JS</div>
+                                        </div>
+                                        <div class="message-bubble">
+                                            <div class="font-medium text-gray-900">John Smith</div>
+                                            <div class="mt-1 text-sm text-gray-700 bg-white p-3 rounded-lg">Noted. Let's add technical debt resolution as the first item in our engineering priorities. Sarah, can you make sure that's reflected?</div>
+                                            <div class="mt-1 text-xs text-gray-500">10:32 AM</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-4 flex">
+                                <input type="text" placeholder="Add comment or action item..." class="flex-1 border border-gray-300 rounded-l-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-r-md">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Meeting Assistant -->
+                    <div class="bg-white rounded-lg shadow">
+                        <div class="border-b border-gray-200 px-6 py-4">
+                            <h3 class="text-lg font-medium text-gray-900">Smart Meeting Assistant</h3>
+                        </div>
+                        <div class="p-6">
+                            <div class="flex border-b border-gray-200">
+                                <button class="px-4 py-2 text-blue-600 border-b-2 border-blue-500 font-medium">Transcript</button>
+                                <button class="px-4 py-2 text-gray-500 border-b-2 border-transparent hover:text-blue-600 hover:border-blue-500">Summary</button>
+                                <button class="px-4 py-2 text-gray-500 border-b-2 border-transparent hover:text-blue-600 hover:border-blue-500">Analytics</button>
+                                <button class="px-4 py-2 text-gray-500 border-b-2 border-transparent hover:text-blue-600 hover:border-blue-500">Tasks</button>
+                            </div>
+                            
+                            <div class="mt-4 meeting-assistant bg-gray-50 rounded-lg p-4">
+                                <div class="bg-blue-50 p-4 rounded-lg mb-4">
+                                    <p class="text-sm text-blue-800">I've detected 3 action items so far in this meeting. Would you like me to summarize the key decisions made?</p>
+                                </div>
+                                
+                                <div class="space-y-4">
+                                    <div class="bg-white p-4 rounded-lg shadow-sm">
+                                        <h4 class="font-medium text-gray-900 mb-2">Key Topics Discussed</h4>
+                                        <ul class="text-sm text-gray-700 list-disc list-inside space-y-1">
+                                            <li>Technical debt in authentication system</li>
+                                            <li>Q3 product roadmap priorities</li>
+                                            <li>Resource allocation for new features</li>
+                                        </ul>
+                                    </div>
+                                    
+                                    <div class="bg-white p-4 rounded-lg shadow-sm">
+                                        <h4 class="font-medium text-gray-900 mb-2">Action Items Identified</h4>
+                                        <ul class="text-sm text-gray-700 list-disc list-inside space-y-1">
+                                            <li>Address authentication system issues (Assigned to Engineering)</li>
+                                            <li>Update product roadmap document (Assigned to Sarah)</li>
+                                            <li>Schedule follow-up meeting for resource planning (Assigned to John)</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-4 flex">
+                                <input type="text" placeholder="Ask a question about the meeting..." class="flex-1 border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <button class="ml-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Right Column -->
+                <div class="space-y-6">
+                    <!-- Participants -->
+                    <div class="bg-white rounded-lg shadow">
+                        <div class="border-b border-gray-200 px-6 py-4">
+                            <h3 class="text-lg font-medium text-gray-900">Participants (4)</h3>
+                        </div>
+                        <div class="p-6">
+                            <div class="space-y-4">
+                                <div class="flex items-center">
+                                    <div class="participant-avatar bg-blue-100 text-blue-600">JS</div>
+                                    <div class="ml-3 flex-1">
+                                        <p class="text-sm font-medium text-gray-900">John Smith</p>
+                                        <p class="text-xs text-gray-500">Host</p>
+                                    </div>
+                                    <div class="flex space-x-2 text-green-500">
+                                        <i class="fas fa-microphone"></i>
+                                        <i class="fas fa-video"></i>
+                                    </div>
+                                </div>
+                                <div class="flex items-center">
+                                    <div class="participant-avatar bg-green-100 text-green-600">SD</div>
+                                    <div class="ml-3 flex-1">
+                                        <p class="text-sm font-medium text-gray-900">Sarah Davis</p>
+                                        <p class="text-xs text-gray-500">Presenter</p>
+                                    </div>
+                                    <div class="flex space-x-2 text-green-500">
+                                        <i class="fas fa-microphone"></i>
+                                        <i class="fas fa-video"></i>
+                                    </div>
+                                </div>
+                                <div class="flex items-center">
+                                    <div class="participant-avatar bg-purple-100 text-purple-600">MJ</div>
+                                    <div class="ml-3 flex-1">
+                                        <p class="text-sm font-medium text-gray-900">Mike Johnson</p>
+                                        <p class="text-xs text-gray-500">Participant</p>
+                                    </div>
+                                    <div class="flex space-x-2">
+                                        <i class="fas fa-microphone-slash text-red-500"></i>
+                                        <i class="fas fa-video text-green-500"></i>
+                                    </div>
+                                </div>
+                                <div class="flex items-center">
+                                    <div class="participant-avatar bg-yellow-100 text-yellow-600">AL</div>
+                                    <div class="ml-3 flex-1">
+                                        <p class="text-sm font-medium text-gray-900">Amy Lee</p>
+                                        <p class="text-xs text-gray-500">Participant</p>
+                                    </div>
+                                    <div class="flex space-x-2">
+                                        <i class="fas fa-microphone text-green-500"></i>
+                                        <i class="fas fa-video-slash text-red-500"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-6 pt-4 border-t border-gray-200">
+                                <p class="text-sm text-gray-500">Meeting ID</p>
+                                <p class="text-sm font-medium text-gray-900">#MRR-2023-0875</p>
+                                
+                                <button class="mt-4 w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                                    <i class="fas fa-user-plus mr-2"></i>
+                                    Invite people
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Action Items -->
+                    <div class="bg-white rounded-lg shadow">
+                        <div class="border-b border-gray-200 px-6 py-4">
+                            <h3 class="text-lg font-medium text-gray-900">Action Items</h3>
+                        </div>
+                        <div class="p-6">
+                            <div class="space-y-4">
+                                <div class="flex items-start">
+                                    <div class="flex-shrink-0 mt-1 mr-3">
+                                        <input type="checkbox" class="h-4 w-4 text-blue-600 rounded">
+                                    </div>
+                                    <div class="flex-1">
+                                        <p class="text-sm font-medium text-gray-900">Fix authentication system issues</p>
+                                        <p class="text-sm text-gray-500">Assigned to Engineering Team · Due Friday</p>
+                                    </div>
+                                    <div class="flex-shrink-0">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Critical</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-start">
+                                    <div class="flex-shrink-0 mt-1 mr-3">
+                                        <input type="checkbox" class="h-4 w-4 text-blue-600 rounded">
+                                    </div>
+                                    <div class="flex-1">
+                                        <p class="text-sm font-medium text-gray-900">Update product roadmap document</p>
+                                        <p class="text-sm text-gray-500">Assigned to Sarah Davis · Due tomorrow</p>
+                                    </div>
+                                    <div class="flex-shrink-0">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">High</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-start">
+                                    <div class="flex-shrink-0 mt-1 mr-3">
+                                        <input type="checkbox" class="h-4 w-4 text-blue-600 rounded">
+                                    </div>
+                                    <div class="flex-1">
+                                        <p class="text-sm font-medium text-gray-900">Schedule resource planning meeting</p>
+                                        <p class="text-sm text-gray-500">Assigned to John Smith · Due today</p>
+                                    </div>
+                                    <div class="flex-shrink-0">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Medium</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <button class="mt-4 w-full flex items-center justify-center px-4 py-2 border border-dashed border-gray-300 rounded-md text-gray-500 hover:text-gray-700 hover:border-gray-400">
+                                <i class="fas fa-plus mr-2"></i>
+                                Add action item
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Chat -->
+                    <div class="bg-white rounded-lg shadow">
+                        <div class="border-b border-gray-200 px-6 py-4">
+                            <h3 class="text-lg font-medium text-gray-900">Chat</h3>
+                        </div>
+                        <div class="p-4 h-64 overflow-y-auto">
+                            <div class="space-y-4">
+                                <div class="flex">
+                                    <div class="flex-shrink-0 mr-3">
+                                        <div class="participant-avatar bg-green-100 text-green-600">SD</div>
+                                    </div>
+                                    <div class="bg-gray-100 rounded-lg p-3">
+                                        <p class="text-sm font-medium text-gray-900">Sarah Davis</p>
+                                        <p class="text-sm text-gray-700">I've shared the agenda document in the chat</p>
+                                        <p class="text-xs text-gray-500">10:26 AM</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex">
+                                    <div class="flex-shrink-0 mr-3">
+                                        <div class="participant-avatar bg-blue-100 text-blue-600">JS</div>
+                                    </div>
+                                    <div class="bg-blue-100 rounded-lg p-3">
+                                        <p class="text-sm font-medium text-gray-900">John Smith</p>
+                                        <p class="text-sm text-gray-700">Thanks Sarah. Everyone please take a look</p>
+                                        <p class="text-xs text-gray-500">10:27 AM</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex">
+                                    <div class="flex-shrink-0 mr-3">
+                                        <div class="participant-avatar bg-purple-100 text-purple-600">MJ</div>
+                                    </div>
+                                    <div class="bg-gray-100 rounded-lg p-3">
+                                        <p class="text-sm font-medium text-gray-900">Mike Johnson</p>
+                                        <p class="text-sm text-gray-700">I've added some comments about the technical issues</p>
+                                        <p class="text-xs text-gray-500">10:29 AM</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="border-t border-gray-200 p-4">
+                            <div class="flex">
+                                <input type="text" placeholder="Type a message..." class="flex-1 border border-gray-300 rounded-l-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-r-md">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Mobile menu functionality
+        document.getElementById('mobileMenuButton').addEventListener('click', function() {
+            document.querySelector('.sidebar').classList.toggle('active');
+            document.getElementById('overlay').classList.toggle('active');
+        });
+
+        document.getElementById('overlay').addEventListener('click', function() {
+            document.querySelector('.sidebar').classList.remove('active');
+            this.classList.remove('active');
+        });
+
+        // Go back to dashboard
+        function goBack() {
+            window.location.href = 'index.html';
+        }
+
+        // Toggle microphone
+        document.querySelectorAll('.control-button')[0].addEventListener('click', function() {
+            const icon = this.querySelector('i');
+            if (icon.classList.contains('fa-microphone')) {
+                icon.classList.remove('fa-microphone');
+                icon.classList.add('fa-microphone-slash');
+                icon.classList.remove('text-gray-700');
+                icon.classList.add('text-red-500');
+            } else {
+                icon.classList.remove('fa-microphone-slash');
+                icon.classList.add('fa-microphone');
+                icon.classList.remove('text-red-500');
+                icon.classList.add('text-gray-700');
+            }
+        });
+
+        // Toggle video
+        document.querySelectorAll('.control-button')[1].addEventListener('click', function() {
+            const icon = this.querySelector('i');
+            if (icon.classList.contains('fa-video')) {
+                icon.classList.remove('fa-video');
+                icon.classList.add('fa-video-slash');
+                icon.classList.remove('text-gray-700');
+                icon.classList.add('text-red-500');
+            } else {
+                icon.classList.remove('fa-video-slash');
+                icon.classList.add('fa-video');
+                icon.classList.remove('text-red-500');
+                icon.classList.add('text-gray-700');
+            }
+        });
+
+        // End call button
+        document.querySelectorAll('.control-button')[5].addEventListener('click', function() {
+            if (confirm('Are you sure you want to leave the meeting?')) {
+                goBack();
+            }
+        });
+    </script>
+</body>
+</html>
